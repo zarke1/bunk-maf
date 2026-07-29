@@ -113,10 +113,18 @@ async function resolveNight(r, allPlayers){
   const st = { ...r.state };
   const tally = {};
   for(const v of Object.values(st.nightActions.mafia||{})){ if(v) tally[v]=(tally[v]||0)+1; }
-  let killTarget=null, max=-1;
-  for(const [id,c] of Object.entries(tally)){ if(c>max){ max=c; killTarget=id; } }
+  let killTarget = null;
+  let max = -1;
+  for(const [id,c] of Object.entries(tally)){
+    if(c > max){
+      max = c;
+      killTarget = id;
+    }
+  }
 
-  const saved = st.nightActions.doctor && st.nightActions.doctor===killTarget;
+  // Если мафия выбрала несколько целей, убиваем только одну — ту, за которую было больше всего голосов.
+  // Даже если были разные цели, killTarget останется одним идентификатором.
+  const saved = st.nightActions.doctor && st.nightActions.doctor === killTarget;
   const log = [...st.log];
 
   if(st.nightActions.detective){
@@ -209,6 +217,28 @@ async function goToVote(){
 async function castVote(targetId){
   const st = { ...room.state };
   st.votes = { ...st.votes, [me.id]: targetId };
+  await touchRoomActivity(roomId);
+  await sb.from("rooms").update({ state: st }).eq("id", roomId);
+}
+
+async function sendMafiaMessage(){
+  const input = document.getElementById("mafiaChatInput");
+  const text = input?.value?.trim();
+  if(!text) return;
+  const myPlayer = players.find(p => p.user_id === me.id);
+  if(!myPlayer?.alive || myPlayer?.role?.name !== "mafia"){
+    toast("Только мафия может писать в этот чат");
+    return;
+  }
+  const st = { ...room.state };
+  st.mafiaChat = [...(st.mafiaChat||[]), {
+    id: Date.now().toString() + Math.random().toString(16).slice(2),
+    user_id: me.id,
+    nickname: profile?.nickname || myPlayer.nickname || "?",
+    text,
+    ts: Date.now()
+  }];
+  input.value = "";
   await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
