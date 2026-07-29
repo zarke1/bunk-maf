@@ -65,8 +65,30 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- Realtime: включаем публикацию изменений
-alter publication supabase_realtime add table rooms;
-alter publication supabase_realtime add table room_players;
+-- Realtime: включаем публикацию изменений (без ошибки, если уже добавлено)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication p
+    JOIN pg_publication_rel pr ON p.oid = pr.prpubid
+    JOIN pg_class c ON pr.prrelid = c.oid
+    WHERE p.pubname = 'supabase_realtime' AND c.relname = 'rooms'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication p
+    JOIN pg_publication_rel pr ON p.oid = pr.prpubid
+    JOIN pg_class c ON pr.prrelid = c.oid
+    WHERE p.pubname = 'supabase_realtime' AND c.relname = 'room_players'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE room_players;
+  END IF;
+END$$;
 
 -- ============================================================
 -- RLS (Row Level Security)
@@ -81,31 +103,91 @@ alter table stats enable row level security;
 alter table rooms enable row level security;
 alter table room_players enable row level security;
 
-create policy "profiles_select_all" on profiles for select using (true);
-create policy "profiles_update_own" on profiles for update using (auth.uid() = id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='profiles' AND policyname='profiles_select_all'
+  ) THEN
+    CREATE POLICY "profiles_select_all" ON profiles FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='profiles' AND policyname='profiles_update_own'
+  ) THEN
+    CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE USING (auth.uid() = id);
+  END IF;
+END$$;
 
-create policy "stats_select_all" on stats for select using (true);
-create policy "stats_update_auth" on stats for update using (auth.role() = 'authenticated');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='stats' AND policyname='stats_select_all'
+  ) THEN
+    CREATE POLICY "stats_select_all" ON stats FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='stats' AND policyname='stats_update_auth'
+  ) THEN
+    CREATE POLICY "stats_update_auth" ON stats FOR UPDATE USING (auth.role() = 'authenticated');
+  END IF;
+END$$;
 
-create policy "rooms_select_all" on rooms for select using (true);
-create policy "rooms_insert_auth" on rooms for insert with check (auth.role() = 'authenticated');
-create policy "rooms_update_auth" on rooms for update using (auth.role() = 'authenticated');
-create policy "rooms_delete_admin" on rooms for delete using (
-  exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.is_admin = true
-  )
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='rooms' AND policyname='rooms_select_all'
+  ) THEN
+    CREATE POLICY "rooms_select_all" ON rooms FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='rooms' AND policyname='rooms_insert_auth'
+  ) THEN
+    CREATE POLICY "rooms_insert_auth" ON rooms FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='rooms' AND policyname='rooms_update_auth'
+  ) THEN
+    CREATE POLICY "rooms_update_auth" ON rooms FOR UPDATE USING (auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='rooms' AND policyname='rooms_delete_admin'
+  ) THEN
+    CREATE POLICY "rooms_delete_admin" ON rooms FOR DELETE USING (
+      EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid() AND p.is_admin = true
+      )
+    );
+  END IF;
+END$$;
 
-create policy "room_players_select_all" on room_players for select using (true);
-create policy "room_players_insert_auth" on room_players for insert with check (auth.role() = 'authenticated');
-create policy "room_players_update_auth" on room_players for update using (auth.role() = 'authenticated');
-create policy "room_players_delete_admin" on room_players for delete using (
-  exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.is_admin = true
-  )
-);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='room_players' AND policyname='room_players_select_all'
+  ) THEN
+    CREATE POLICY "room_players_select_all" ON room_players FOR SELECT USING (true);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='room_players' AND policyname='room_players_insert_auth'
+  ) THEN
+    CREATE POLICY "room_players_insert_auth" ON room_players FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='room_players' AND policyname='room_players_update_auth'
+  ) THEN
+    CREATE POLICY "room_players_update_auth" ON room_players FOR UPDATE USING (auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='room_players' AND policyname='room_players_delete_admin'
+  ) THEN
+    CREATE POLICY "room_players_delete_admin" ON room_players FOR DELETE USING (
+      EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid() AND p.is_admin = true
+      )
+    );
+  END IF;
+END$$;
 
 -- После первой регистрации сделайте себя админом (замените ник):
 -- update profiles set is_admin = true where nickname = 'ВАШ_НИК';
