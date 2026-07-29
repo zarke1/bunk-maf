@@ -13,7 +13,15 @@
     <div class="profile-card">
       <div>
         <div class="overline">Профиль</div>
-        <div class="profile-name" id="nickPill">...</div>
+        <div style="display:flex; align-items:center; gap:12px">
+          <div class="profile-name" id="nickPill">...</div>
+          <button class="btn small" id="editNickBtn" onclick="showNickEditor()">Изменить имя</button>
+        </div>
+        <div id="nickEditor" style="display:none; margin-top:8px">
+          <input id="nickInput" placeholder="Новое имя" maxlength="24" style="width:180px; display:inline-block; margin-right:8px">
+          <button class="btn small" id="saveNickBtn" onclick="saveNickname()">Сохранить</button>
+          <button class="btn small secondary" onclick="cancelNickEdit()">Отмена</button>
+        </div>
         <div class="profile-meta" id="profileMeta">Загрузка статистики...</div>
       </div>
       <div class="header-actions">
@@ -292,6 +300,30 @@ async function joinById(roomId){
   }
   await touchRoomActivity(room.id);
   location.href = (room.game_type==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + room.id;
+}
+
+function showNickEditor(){
+  nickEditor.style.display = 'block';
+  editNickBtn.style.display = 'none';
+  nickInput.value = profile?.nickname || '';
+  nickInput.focus();
+}
+function cancelNickEdit(){
+  nickEditor.style.display = 'none';
+  editNickBtn.style.display = 'inline-block';
+}
+async function saveNickname(){
+  const v = (nickInput.value||'').trim();
+  if(!v){ toast('Введите имя'); return; }
+  saveNickBtn.disabled = true;
+  try{
+    const updated = await updateNickname(me.id, v);
+    profile = updated;
+    nickPill.textContent = '👤 ' + (profile.nickname || '...');
+    toast('Имя сохранено');
+    cancelNickEdit();
+  }catch(e){ console.error(e); toast(e.message || 'Ошибка сохранения'); }
+  finally{ saveNickBtn.disabled = false; }
 }
 
 init();

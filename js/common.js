@@ -24,6 +24,19 @@ async function getStats(userId) {
   return data;
 }
 
+async function updateNickname(userId, nickname) {
+  if (!userId) throw new Error('no user');
+  const clean = (nickname || '').trim();
+  if (!clean) throw new Error('empty nickname');
+  const { data, error } = await sb.from('profiles').update({ nickname: clean }).eq('id', userId).select().single();
+  if (error) throw error;
+  // update any room_players rows so display name stays consistent
+  try{
+    await sb.from('room_players').update({ nickname: clean }).eq('user_id', userId);
+  }catch(e){ console.warn('failed to update room_players', e); }
+  return data;
+}
+
 function genRoomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
