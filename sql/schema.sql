@@ -90,10 +90,22 @@ create policy "stats_update_auth" on stats for update using (auth.role() = 'auth
 create policy "rooms_select_all" on rooms for select using (true);
 create policy "rooms_insert_auth" on rooms for insert with check (auth.role() = 'authenticated');
 create policy "rooms_update_auth" on rooms for update using (auth.role() = 'authenticated');
+create policy "rooms_delete_admin" on rooms for delete using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
 
 create policy "room_players_select_all" on room_players for select using (true);
 create policy "room_players_insert_auth" on room_players for insert with check (auth.role() = 'authenticated');
 create policy "room_players_update_auth" on room_players for update using (auth.role() = 'authenticated');
+create policy "room_players_delete_admin" on room_players for delete using (
+  exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.is_admin = true
+  )
+);
 
 -- После первой регистрации сделайте себя админом (замените ник):
 -- update profiles set is_admin = true where nickname = 'ВАШ_НИК';

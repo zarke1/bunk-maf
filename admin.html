@@ -154,8 +154,10 @@ async function loadRooms(){
 
 async function deleteRoom(id){
   if(!confirm('Удалить комнату?')) return;
-  await sb.from('room_players').delete().eq('room_id', id);
-  await sb.from('rooms').delete().eq('id', id);
+  const { error: playersError } = await sb.from('room_players').delete().eq('room_id', id);
+  if(playersError){ toast('Не удалось очистить игроков комнаты: ' + playersError.message); return; }
+  const { error: roomError } = await sb.from('rooms').delete().eq('id', id);
+  if(roomError){ toast('Не удалось удалить комнату: ' + roomError.message); return; }
   toast('Комната удалена');
   await loadRooms();
 }
