@@ -30,12 +30,9 @@ function buildRoles(n){
 
   if(safeN >= 8){
     roles.push("mafia", "mafia", "detective", "doctor");
-  } else if(safeN >= 6){
-    roles.push("mafia", "detective", "doctor");
-  } else if(safeN >= 5){
-    roles.push("mafia", "detective");
   } else {
-    roles.push("mafia");
+    // Для 4–7 игроков используем одну мафию + комиссара + доктора.
+    roles.push("mafia", "detective", "doctor");
   }
 
   while(roles.length < safeN) roles.push("civilian");
