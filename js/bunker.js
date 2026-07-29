@@ -20,6 +20,7 @@ async function init(){
     .on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId}, loadRoom)
     .on("postgres_changes",{event:"*",schema:"public",table:"room_players",filter:"room_id=eq."+roomId}, loadRoom)
     .subscribe();
+  // Хост каждые несколько секунд проверяет, не истекло ли время голосования
   setInterval(()=>{ if(room && room.host_id===me.id) maybeResolveVote(); }, 3000);
 }
 
@@ -40,7 +41,7 @@ async function startGame(){
   const order = shuffle(players.map(p=>p.user_id));
   const state = {
     phase:"reveal", round:1, turnIndex:0, order, capacity,
-    revealUsage:{}, votes:{}, log:[`☢ Катастрофа: ${catastrophe}. Бункер выдержит ${capacity} из ${players.length} человек.`]
+    votes:{}, log:[`☢ Катастрофа: ${catastrophe}. Бункер выдержит ${capacity} из ${players.length} человек.`]
   };
   for(const p of players){
     const cards = {
@@ -50,7 +51,6 @@ async function startGame(){
     };
     await sb.from("room_players").update({ cards, revealed:{}, alive:true }).eq("room_id", roomId).eq("user_id", p.user_id);
   }
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({
     status:"playing", state, settings:{ ...room.settings, catastrophe, capacity }
   }).eq("id", roomId);
@@ -66,17 +66,12 @@ function isMyTurn(){
 }
 
 async function revealCard(type){
-  const st = { ...room.state };
-  if(st.phase !== "reveal"){ toast("Раскрывать карточки можно только в фазе раскрытия"); return; }
-  if(st.revealUsage?.[me.id]){ toast("В этом раунде ты уже открыл(а) одну карточку"); return; }
   const p = players.find(x=>x.user_id===me.id);
   const revealed = { ...(p.revealed||{}), [type]: true };
   await sb.from("room_players").update({ revealed }).eq("room_id", roomId).eq("user_id", me.id);
-  await touchRoomActivity(roomId);
-  await sb.from("rooms").update({ state:{ ...st, revealUsage:{ ...(st.revealUsage||{}), [me.id]: true } } }).eq("id", roomId);
 }
 
-const VOTE_TIME_MS = 2*60*1000;
+const VOTE_TIME_MS = 2*60*1000; // 2 минуты на голосование
 
 async function passTurn(){
   if(!isMyTurn()) return;
@@ -86,18 +81,19 @@ async function passTurn(){
   if(st.turnIndex >= ord.length){
     st.phase = "vote"; st.votes = {}; st.voteDeadline = Date.now() + VOTE_TIME_MS;
   }
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
 
 async function castVote(targetId){
   const st = { ...room.state };
   st.votes = { ...st.votes, [me.id]: targetId };
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
   if(room.host_id === me.id) setTimeout(maybeResolveVote, 400);
 }
 
+// Вызывается сразу после голоса (хостом) и по таймеру каждые несколько секунд.
+// Голосование завершается, когда проголосовали все живые ИЛИ истекли 2 минуты —
+// тогда те, кто не успел проголосовать, просто не учитываются.
 async function maybeResolveVote(){
   const { data:r } = await sb.from("rooms").select("*").eq("id", roomId).single();
   if(!r || r.status !== "playing") return;
@@ -113,8 +109,9 @@ async function maybeResolveVote(){
   if(votesCount < alive.length && !timeUp) return; // ждём остальных или таймер
 
   if(votesCount === 0){
+    // никто не успел проголосовать за отведённое время — просто идём дальше без изгнания
     await sb.from("rooms").update({ state:{
-      ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null, revealUsage:{},
+      ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null,
       log:[...st.log, `⌛ Время голосования (раунд ${st.round}) истекло — никто не проголосовал, никто не изгнан.`]
     }}).eq("id", roomId);
     return;
@@ -143,7 +140,7 @@ async function maybeResolveVote(){
       }).eq("user_id", pl.user_id);
     }
   } else {
-    await sb.from("rooms").update({ state:{ ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null, revealUsage:{}, log:newLog } }).eq("id", roomId);
+    await sb.from("rooms").update({ state:{ ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null, log:newLog } }).eq("id", roomId);
   }
 }
 
@@ -218,14 +215,13 @@ function render(){
   html += `<div class="phase-banner">Раунд ${st.round} · Вместимость бункера: ${st.capacity} из ${players.length}</div>`;
 
   html += `<div class="card"><h2>Твои карточки</h2>`;
-  const revealAllowed = st.phase === "reveal" && !st.revealUsage?.[me.id];
   for(const key of Object.keys(CARD_LABELS)){
     const revealed = myPlayer?.revealed?.[key];
     const val = myPlayer?.cards?.[key];
     html += `<div class="card-tile">
       <div><div class="label">${CARD_LABELS[key]}</div>
       <div class="value">${revealed ? esc(String(val)) : "🔒 скрыто"}</div></div>
-      ${!revealed ? (revealAllowed ? `<button class="btn small" onclick="revealCard('${key}')">Раскрыть</button>` : `<span class="muted">В этом раунде уже раскрыта одна карточка</span>`) : ""}
+      ${!revealed ? `<button class="btn small" onclick="revealCard('${key}')">Раскрыть</button>` : ""}
     </div>`;
   }
   html += `</div>`;

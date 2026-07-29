@@ -48,9 +48,8 @@ async function startGame(){
   const state = {
     phase:"night", dayNumber:1,
     nightActions:{ mafia:{}, doctor:null, detective:null },
-    votes:{}, log:["🌙 Ночь 1. Все закрывают глаза..."], winner:null, checks:[], mafiaChat:[]
+    votes:{}, log:["🌙 Ночь 1. Все закрывают глаза..."], winner:null, checks:[]
   };
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ status:"playing", state }).eq("id", roomId);
 }
 
@@ -71,7 +70,6 @@ async function nightAction(kind, targetId){
   } else if(kind==="detective"){
     st.nightActions.detective = targetId;
   }
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
 
@@ -194,14 +192,12 @@ async function applyStats(allPlayers, win){
 
 async function goToVote(){
   const st = { ...room.state, phase:"vote", votes:{} };
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
 
 async function castVote(targetId){
   const st = { ...room.state };
   st.votes = { ...st.votes, [me.id]: targetId };
-  await touchRoomActivity(roomId);
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
 
@@ -262,17 +258,6 @@ function render(){
     <span class="badge ${role==='mafia'?'mafia':'good'}" style="font-size:15px;padding:8px 14px">${ROLE_NAMES[role]||'?'}</span>
     ${!myPlayer?.alive ? '<p class="muted" style="margin-top:10px">Ты выбыл(а) из игры, но можешь наблюдать.</p>' : ''}
   </div>`;
-
-  if(role === "mafia" && myPlayer?.alive){
-    const mafiaMessages = (st.mafiaChat||[]).filter(Boolean);
-    html += `<div class="card"><h2>💬 Чат мафии</h2>
-      <div class="chat-list">${mafiaMessages.length ? mafiaMessages.map(msg=>`<div class="chat-item"><b>${esc(msg.nickname)}</b>: ${esc(msg.text)}</div>`).join("") : '<p class="muted">Пока сообщений нет.</p>'}</div>
-      <div class="chat-input-row">
-        <input id="mafiaChatInput" placeholder="Сообщение для мафии" maxlength="160">
-        <button class="btn small" onclick="sendMafiaMessage()">Отправить</button>
-      </div>
-    </div>`;
-  }
 
   if(myPlayer?.alive && st.phase==="night"){
     if(role==="mafia"){
