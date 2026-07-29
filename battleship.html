@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Морской бой</title>
 <link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 <div class="page-shell">
@@ -12,13 +13,15 @@
     <a class="site-logo" href="lobby.html">Bunker & Mafia</a>
     <div class="header-actions">
       <a class="header-link" href="lobby.html">В лобби</a>
-      <button class="btn small secondary" onclick="location.href='index.html'">Выйти</button>
+      <button class="btn small secondary" onclick="logout()">Выйти</button>
     </div>
   </header>
   <main class="page-content">
     <div class="battleship-shell" id="app">Загрузка...</div>
   </main>
 </div>
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
 <script src="js/battleship.js"></script>
 </body>
 </html>

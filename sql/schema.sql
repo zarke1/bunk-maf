@@ -26,7 +26,7 @@ create table if not exists stats (
 create table if not exists rooms (
   id uuid default gen_random_uuid() primary key,
   code text unique not null,
-  game_type text not null check (game_type in ('bunker','mafia')),
+  game_type text not null check (game_type in ('bunker','mafia','battleship')),
   host_id uuid references profiles(id),
   status text default 'waiting' check (status in ('waiting','playing','finished')),
   settings jsonb default '{}',
