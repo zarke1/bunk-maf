@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Лобби — Бункер & Мафия</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">🎭 Бункер & <span>Мафия</span></div>
+    <div style="display:flex; align-items:center; gap:10px">
+      <span class="pill" id="nickPill">...</span>
+      <a class="pill" id="adminLink" href="admin.html" style="display:none; text-decoration:none">⚙ Админка</a>
+      <button class="btn small secondary" onclick="logout()">Выйти</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>🏕 Бункер</h2>
+      <p class="muted">До 15 игроков. Каждый получает случайные карточки (профессия, здоровье, хобби и т.д.) и по очереди раскрывает их, пока компания голосованиями не отберёт нужное число выживших.</p>
+      <button class="btn" onclick="createRoom('bunker')">Создать комнату</button>
+    </div>
+    <div class="card">
+      <h2>🔪 Мафия</h2>
+      <p class="muted">Классические роли: мафия, доктор, комиссар, мирные. Ночь — действия, день — обсуждение и голосование за изгнание.</p>
+      <button class="btn" onclick="createRoom('mafia')">Создать комнату</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Присоединиться по коду</h2>
+    <input id="joinCode" placeholder="Введи код комнаты" style="text-transform:uppercase">
+    <button class="btn" onclick="joinRoom()">Войти в комнату</button>
+  </div>
+
+  <div class="card">
+    <h2>Моя статистика</h2>
+    <div id="statsBox" class="muted">Загрузка...</div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+let me, profile;
+
+async function init(){
+  me = await requireAuth();
+  if(!me) return;
+  profile = await getProfile(me.id);
+  nickPill.textContent = '👤 ' + (profile?.nickname || '...');
+  if(profile?.is_admin) adminLink.style.display = 'inline-block';
+
+  const stats = await getStats(me.id);
+  statsBox.innerHTML = `
+    <table>
+      <tr><th></th><th>Сыграно</th><th>Побед</th></tr>
+      <tr><td>🏕 Бункер</td><td>${stats?.bunker_played||0}</td><td>${stats?.bunker_won||0}</td></tr>
+      <tr><td>🔪 Мафия</td><td>${stats?.mafia_played||0}</td><td>${stats?.mafia_won||0}</td></tr>
+    </table>
+  `;
+}
+
+async function createRoom(type){
+  const code = genRoomCode();
+  const { data, error } = await sb.from('rooms').insert({
+    code, game_type: type, host_id: me.id, status: 'waiting', state: {}
+  }).select().single();
+  if(error){ toast(error.message); return; }
+  await sb.from('room_players').insert({ room_id: data.id, user_id: me.id, nickname: profile.nickname, seat: 0 });
+  location.href = (type==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + data.id;
+}
+
+async function joinRoom(){
+  const code = joinCode.value.trim().toUpperCase();
+  if(!code){ toast('Введи код'); return; }
+  const { data: room, error } = await sb.from('rooms').select('*').eq('code', code).single();
+  if(error || !room){ toast('Комната не найдена'); return; }
+  if(room.status !== 'waiting'){ toast('Игра уже началась'); return; }
+
+  const { data: existing } = await sb.from('room_players').select('*').eq('room_id', room.id).eq('user_id', me.id);
+  if(!existing || existing.length===0){
+    const { count } = await sb.from('room_players').select('*', { count:'exact', head:true }).eq('room_id', room.id);
+    const max = room.game_type==='bunker' ? 15 : 12;
+    if(count >= max){ toast('Комната заполнена'); return; }
+    await sb.from('room_players').insert({ room_id: room.id, user_id: me.id, nickname: profile.nickname, seat: count });
+  }
+  location.href = (room.game_type==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + room.id;
+}
+
+init();
+</script>
+</body>
+</html>

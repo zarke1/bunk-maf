@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Бункер & Мафия — Вход</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+<div class="wrap" style="max-width:480px; padding-top:60px">
+  <div class="header" style="justify-content:center">
+    <div class="brand">🎭 Бункер & <span>Мафия</span></div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <div class="tab active" id="tabLogin" onclick="switchTab('login')">Вход</div>
+      <div class="tab" id="tabReg" onclick="switchTab('reg')">Регистрация</div>
+    </div>
+
+    <div id="loginForm">
+      <label>Никнейм</label>
+      <input id="logNick" placeholder="Твой ник">
+      <label>Пароль</label>
+      <input id="logPass" type="password" placeholder="Пароль">
+      <button class="btn" style="width:100%" onclick="login()">Войти</button>
+    </div>
+
+    <div id="regForm" style="display:none">
+      <label>Никнейм (мин. 3 символа)</label>
+      <input id="regNick" placeholder="Придумай ник">
+      <label>Пароль (мин. 6 символов)</label>
+      <input id="regPass" type="password" placeholder="Придумай пароль">
+      <label>Повтори пароль</label>
+      <input id="regPass2" type="password" placeholder="Ещё раз пароль">
+      <button class="btn" style="width:100%" onclick="register()">Зарегистрироваться</button>
+    </div>
+  </div>
+  <p class="muted center">Ник и пароль — это твой единственный способ входа. Никому их не говори и не забудь :)</p>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+function switchTab(t){
+  document.getElementById('tabLogin').classList.toggle('active', t==='login');
+  document.getElementById('tabReg').classList.toggle('active', t==='reg');
+  document.getElementById('loginForm').style.display = t==='login' ? 'block':'none';
+  document.getElementById('regForm').style.display = t==='reg' ? 'block':'none';
+}
+
+async function register(){
+  const nick = regNick.value.trim();
+  const pass = regPass.value;
+  const pass2 = regPass2.value;
+  if(nick.length<3){ toast('Ник минимум 3 символа'); return; }
+  if(pass.length<6){ toast('Пароль минимум 6 символов'); return; }
+  if(pass!==pass2){ toast('Пароли не совпадают'); return; }
+
+  const { data: existing } = await sb.from('profiles').select('id').ilike('nickname', nick);
+  if(existing && existing.length>0){ toast('Такой ник уже занят'); return; }
+
+  const email = emailFromNick(nick);
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass, options: { data: { nickname: nick } }
+  });
+  if(error){ toast('Ошибка: '+error.message); return; }
+
+  // Если в настройках Supabase выключено подтверждение email, сессия появится сразу
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ location.href='lobby.html'; return; }
+
+  // Иначе пробуем сразу войти
+  const { error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(!loginErr){ location.href='lobby.html'; return; }
+
+  toast('Регистрация прошла. Попробуй войти.');
+  switchTab('login');
+}
+
+async function login(){
+  const nick = logNick.value.trim();
+  const pass = logPass.value;
+  if(!nick || !pass){ toast('Заполни ник и пароль'); return; }
+  const email = emailFromNick(nick);
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if(error){ toast('Неверный ник или пароль'); return; }
+  location.href='lobby.html';
+}
+
+(async ()=>{
+  const user = await getSessionUser();
+  if(user) location.href='lobby.html';
+})();
+</script>
+</body>
+</html>

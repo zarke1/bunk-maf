@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админ-панель</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">⚙ <span>Админ-панель</span></div>
+    <button class="btn small secondary" onclick="location.href='lobby.html'">В лобби</button>
+  </div>
+
+  <div class="card">
+    <h2>Пользователи</h2>
+    <div id="usersBox" class="muted">Загрузка...</div>
+  </div>
+
+  <div class="card">
+    <h2>Активные / последние комнаты</h2>
+    <div id="roomsBox" class="muted">Загрузка...</div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/common.js"></script>
+<script>
+let me, profile;
+
+async function init(){
+  me = await requireAuth();
+  if(!me) return;
+  profile = await getProfile(me.id);
+  if(!profile?.is_admin){
+    document.querySelector('.wrap').innerHTML = `<div class="card"><h2>Нет доступа</h2><p class="muted">Эта страница только для админов.</p><a href="lobby.html">В лобби</a></div>`;
+    return;
+  }
+  await loadUsers();
+  await loadRooms();
+}
+
+async function loadUsers(){
+  const { data: profiles } = await sb.from('profiles').select('*').order('created_at', { ascending:false });
+  const { data: stats } = await sb.from('stats').select('*');
+  const statsMap = {};
+  (stats||[]).forEach(s => statsMap[s.user_id] = s);
+
+  usersBox.innerHTML = `<table>
+    <tr><th>Ник</th><th>Регистрация</th><th>Бункер (сыгр/побед)</th><th>Мафия (сыгр/побед)</th><th>Админ</th><th></th></tr>
+    ${(profiles||[]).map(p=>{
+      const s = statsMap[p.id] || {};
+      return `<tr>
+        <td>${esc(p.nickname)}</td>
+        <td>${new Date(p.created_at).toLocaleDateString('ru-RU')}</td>
+        <td>${s.bunker_played||0} / ${s.bunker_won||0}</td>
+        <td>${s.mafia_played||0} / ${s.mafia_won||0}</td>
+        <td>${p.is_admin ? '✅' : '—'}</td>
+        <td>
+          <button class="btn small secondary" onclick="toggleAdmin('${p.id}', ${!p.is_admin})">${p.is_admin?'Снять админа':'Сделать админом'}</button>
+          <button class="btn small danger" onclick="resetStats('${p.id}')">Сбросить статистику</button>
+        </td>
+      </tr>`;
+    }).join('')}
+  </table>`;
+}
+
+async function toggleAdmin(userId, value){
+  await sb.from('profiles').update({ is_admin: value }).eq('id', userId);
+  toast('Обновлено');
+  loadUsers();
+}
+
+async function resetStats(userId){
+  if(!confirm('Точно сбросить статистику этого игрока?')) return;
+  await sb.from('stats').update({ bunker_played:0, bunker_won:0, mafia_played:0, mafia_won:0 }).eq('user_id', userId);
+  toast('Статистика сброшена');
+  loadUsers();
+}
+
+async function loadRooms(){
+  const { data: rooms } = await sb.from('rooms').select('*').order('created_at', { ascending:false }).limit(30);
+  roomsBox.innerHTML = `<table>
+    <tr><th>Код</th><th>Игра</th><th>Статус</th><th>Создана</th><th></th></tr>
+    ${(rooms||[]).map(r=>`<tr>
+      <td>${esc(r.code)}</td>
+      <td>${r.game_type==='bunker'?'🏕 Бункер':'🔪 Мафия'}</td>
+      <td>${r.status}</td>
+      <td>${new Date(r.created_at).toLocaleString('ru-RU')}</td>
+      <td><button class="btn small danger" onclick="deleteRoom('${r.id}')">Удалить</button></td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+async function deleteRoom(id){
+  if(!confirm('Удалить комнату?')) return;
+  await sb.from('rooms').delete().eq('id', id);
+  toast('Комната удалена');
+  loadRooms();
+}
+
+init();
+</script>
+</body>
+</html>

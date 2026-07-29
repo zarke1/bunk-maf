@@ -1,0 +1,78 @@
+:root{
+  --bg:#0f1220; --panel:#171b2e; --panel2:#1f2440; --text:#eef0ff;
+  --muted:#9aa0c0; --accent:#7c5cff; --accent2:#ff5c7c; --good:#3ddc97; --bad:#ff5c5c;
+  --border:#2a2f52;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:'Segoe UI',Roboto,Arial,sans-serif; background:linear-gradient(180deg,#0f1220,#151833 60%);
+  color:var(--text); min-height:100vh;
+}
+.wrap{max-width:900px; margin:0 auto; padding:24px 16px 60px}
+h1,h2,h3{font-weight:700}
+.header{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px}
+.header .brand{font-size:22px; font-weight:800; letter-spacing:.5px}
+.header .brand span{color:var(--accent)}
+.pill{background:var(--panel2); padding:6px 12px; border-radius:20px; font-size:13px; color:var(--muted)}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px}
+.card h2{margin-top:0}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+label{display:block; font-size:13px; color:var(--muted); margin:10px 0 4px}
+input,select{
+  width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
+  background:#11142200; background:#12152a; color:var(--text); font-size:15px;
+}
+input:focus,select:focus{outline:2px solid var(--accent)}
+.btn{
+  display:inline-block; padding:11px 18px; border-radius:10px; border:none; cursor:pointer;
+  background:var(--accent); color:#fff; font-weight:600; font-size:15px; margin-top:14px; margin-right:8px;
+}
+.btn:hover{opacity:.9}
+.btn.secondary{background:var(--panel2); color:var(--text); border:1px solid var(--border)}
+.btn.danger{background:var(--accent2)}
+.btn.small{padding:7px 12px; font-size:13px; margin-top:0}
+.btn:disabled{opacity:.4; cursor:not-allowed}
+.tabs{display:flex; gap:8px; margin-bottom:16px}
+.tab{padding:9px 16px; border-radius:10px; cursor:pointer; background:var(--panel2); color:var(--muted); font-weight:600}
+.tab.active{background:var(--accent); color:#fff}
+.muted{color:var(--muted); font-size:14px}
+.row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:none}
+.player-list{margin:10px 0}
+.player-item{
+  display:flex; justify-content:space-between; align-items:center; background:var(--panel2);
+  padding:10px 14px; border-radius:10px; margin-bottom:8px;
+}
+.player-item.dead{opacity:.4; text-decoration:line-through}
+.player-item.me{border:1px solid var(--accent)}
+.badge{font-size:11px; padding:3px 8px; border-radius:20px; background:var(--border); color:var(--muted)}
+.badge.mafia{background:#5a1830; color:#ff9fb5}
+.badge.good{background:#123a2c; color:var(--good)}
+.card-tile{
+  background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px;
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+}
+.card-tile .label{color:var(--muted); font-size:12px}
+.card-tile .value{font-weight:600}
+.log{background:#0d0f1e; border-radius:10px; padding:12px 14px; max-height:220px; overflow-y:auto; font-size:14px; color:var(--muted)}
+.log div{margin-bottom:6px}
+.center{text-align:center}
+.code-box{font-size:28px; letter-spacing:6px; font-weight:800; text-align:center; padding:14px; background:var(--panel2); border-radius:10px; margin:10px 0}
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--panel2);
+  border:1px solid var(--border); padding:12px 20px; border-radius:10px; opacity:0; transition:.25s; pointer-events:none;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+table{width:100%; border-collapse:collapse; font-size:14px}
+th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--border)}
+th{color:var(--muted); font-weight:600}
+a{color:var(--accent)}
+.phase-banner{
+  text-align:center; padding:14px; border-radius:10px; margin-bottom:16px; font-weight:700; font-size:16px;
+  background:var(--panel2); border:1px solid var(--border);
+}
+.phase-banner.night{background:#151a35}
+.phase-banner.day{background:#2a2410}
+.phase-banner.vote{background:#2a1030}
+.phase-banner.end{background:#0d2a1e}
