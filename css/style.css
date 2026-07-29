@@ -133,6 +133,25 @@ body{
   background:rgba(255,255,255,.04);
   border:1px solid rgba(255,255,255,.06);
 }
+
+/* Leaderboard specific visuals (left panel in design) */
+.leaderboard-panel{
+  background: linear-gradient(180deg, #fff, #f5f5f5);
+  color:#111;
+  padding:12px;
+  border-radius:12px;
+}
+.leaderboard-header{font-weight:800; margin-bottom:12px}
+.leaderboard-items{display:flex; flex-direction:column; gap:8px}
+.leaderboard-row{display:flex; gap:10px; align-items:center; padding:10px; border-radius:10px; background:rgba(0,0,0,0.04)}
+.leaderboard-row.top{background:linear-gradient(90deg,#fff7e6,#fff); box-shadow:0 6px 18px rgba(0,0,0,.06)}
+.leaderboard-row .rank{font-weight:800; width:44px; text-align:center}
+.leaderboard-row .avatar{width:40px; height:40px; border-radius:8px; overflow:hidden; background:#ddd; display:flex; align-items:center; justify-content:center}
+.leaderboard-row .avatar img{width:100%; height:100%; object-fit:cover}
+.leaderboard-row .avatar-placeholder{font-weight:800; color:#555}
+.leaderboard-row .player .meta{margin-left:8px}
+.leaderboard-row .name{font-weight:700}
+
 .profile-card{
   display:flex;
   justify-content:space-between;

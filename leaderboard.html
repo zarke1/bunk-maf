@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Лидерборд — Bunker & Mafia</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="site-logo" href="index.html">Bunker & Mafia</a>
+      <div class="header-actions"><a class="header-link" href="lobby.html">Лобби</a></div>
+    </header>
+
+    <main class="page-content" style="padding:40px; display:flex; justify-content:center;">
+      <div style="max-width:980px; width:100%;">
+        <div class="card">
+          <h2>Лидерборд</h2>
+          <p class="muted">Открытая статистика: видно у кого сколько сыграно игр и сколько побед.</p>
+          <div id="leaderboardBox" class="muted">Загрузка...</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    const sb = window.sb;
+    async function init(){
+      try{
+        const { data, error } = await sb.from('stats').select('*, profiles(nickname, avatar_url)').limit(200);
+        if(error){ leaderboardBox.innerHTML = '<p class="muted">Не удалось загрузить лидеров.</p>'; return; }
+        const rows = (data||[]).map(s=>({
+          nickname: s.profiles?.nickname || '—',
+          avatar: s.profiles?.avatar_url || null,
+          total_played: (s.bunker_played||0) + (s.mafia_played||0),
+          total_wins: (s.bunker_won||0) + (s.mafia_won||0)
+        }));
+        rows.sort((a,b)=> b.total_wins - a.total_wins || b.total_played - a.total_played);
+        leaderboardBox.innerHTML = rows.map((r,i)=>`
+          <div class="player-item">
+            <div style="display:flex; gap:12px; align-items:center">
+              <div class="badge">#${i+1}</div>
+              <div style="font-weight:700">${esc(r.nickname)}</div>
+            </div>
+            <div class="muted">Игры: ${r.total_played} · Победы: ${r.total_wins}</div>
+          </div>
+        `).join('');
+      }catch(e){ console.error(e); leaderboardBox.innerHTML = '<p class="muted">Ошибка загрузки.</p>'; }
+    }
+    function esc(s){ const d=document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+    init();
+  </script>
+</body>
+</html>

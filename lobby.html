@@ -18,6 +18,7 @@
       </div>
       <div class="header-actions">
         <a class="header-link" href="rules.html">Правила</a>
+        <a class="header-link" href="leaderboard.html">Лидерборд</a>
         <a class="header-link" id="adminLink" href="admin.html" style="display:none">Админка</a>
         <button class="btn small secondary" onclick="logout()">Выйти</button>
       </div>
@@ -117,6 +118,7 @@ async function init(){
   `;
 
   await Promise.all([loadPublicRooms(), loadMyRooms()]);
+  await loadLeaderboard();
   if(!lobbyRoomsChannel){
     lobbyRoomsChannel = sb.channel('lobby-rooms');
     lobbyRoomsChannel
@@ -190,6 +192,42 @@ async function loadPublicRooms(){
   mafiaRoomsBox.innerHTML = mafiaRooms.length
     ? renderRoomList(mafiaRooms)
     : '<p class="muted">Свободных игр Мафии нет.</p>';
+}
+
+async function loadLeaderboard(){
+  try{
+    const { data, error } = await sb.from('stats').select('*, profiles(nickname, avatar_url)').limit(100);
+    if(error){ leaderboardBox.innerHTML = '<p class="muted">Не удалось загрузить лидеров.</p>'; return; }
+    const rows = (data || []).map(s => ({
+      user_id: s.user_id,
+      nickname: s.profiles?.nickname || '—',
+      avatar: s.profiles?.avatar_url || null,
+      bunker_played: s.bunker_played || 0,
+      bunker_won: s.bunker_won || 0,
+      mafia_played: s.mafia_played || 0,
+      mafia_won: s.mafia_won || 0,
+    }));
+    rows.forEach(r => { r.total_wins = (r.bunker_won || 0) + (r.mafia_won || 0); r.total_played = (r.bunker_played || 0) + (r.mafia_played || 0); });
+    rows.sort((a,b)=> b.total_wins - a.total_wins || b.total_played - a.total_played);
+    leaderboardBox.innerHTML = renderLeaderboard(rows.slice(0,20));
+  }catch(e){ console.error(e); leaderboardBox.innerHTML = '<p class="muted">Ошибка при загрузке.</p>'; }
+}
+
+function renderLeaderboard(rows){
+  return `<div class="leaderboard-panel">
+    <div class="leaderboard-header">Лидерборд по суммарным победам</div>
+    <div class="leaderboard-items">${rows.map((r,idx)=>`
+      <div class="leaderboard-row ${idx<3? 'top' : ''}">
+        <div class="rank">#${idx+1}</div>
+        <div class="player">
+          <div class="avatar">${r.avatar ? `<img src="${r.avatar}" alt="${esc(r.nickname)}">` : '<div class="avatar-placeholder">' + esc(r.nickname.charAt(0)||'') + '</div>'}</div>
+          <div class="meta">
+            <div class="name">${esc(r.nickname)}</div>
+            <div class="small muted">Игры: ${r.total_played} · Победы: ${r.total_wins}</div>
+          </div>
+        </div>
+      </div>`).join('')}</div>
+  </div>`;
 }
 
 function renderRoomList(rooms){
