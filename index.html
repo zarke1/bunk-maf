@@ -68,11 +68,9 @@ async function register(){
   });
   if(error){ toast('Ошибка: '+error.message); return; }
 
-  // Если в настройках Supabase выключено подтверждение email, сессия появится сразу
   const { data:{ session } } = await sb.auth.getSession();
   if(session){ location.href='lobby.html'; return; }
 
-  // Иначе пробуем сразу войти
   const { error: loginErr } = await sb.auth.signInWithPassword({ email, password: pass });
   if(!loginErr){ location.href='lobby.html'; return; }
 

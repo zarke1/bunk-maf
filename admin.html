@@ -43,11 +43,13 @@
 let me, profile;
 let allProfiles = [];
 let statsMap = {};
+let roomsChannel = null;
 
 async function init(){
   me = await requireAuth();
   if(!me) return;
   profile = await getProfile(me.id);
+  await cleanupInactiveRooms();
   if(!profile?.is_admin){
     document.querySelector('.wrap').innerHTML = `<div class="card"><h2>Нет доступа</h2><p class="muted">Эта страница только для админов.</p><a href="lobby.html">В лобби</a></div>`;
     return;
@@ -55,6 +57,13 @@ async function init(){
   await loadUsers();
   renderLeaderboard();
   await loadRooms();
+  if(!roomsChannel){
+    roomsChannel = sb.channel('admin-rooms');
+    roomsChannel
+      .on('postgres_changes', { event:'*', schema:'public', table:'rooms' }, loadRooms)
+      .on('postgres_changes', { event:'*', schema:'public', table:'room_players' }, loadRooms)
+      .subscribe();
+  }
 }
 
 async function loadUsers(){
@@ -145,9 +154,10 @@ async function loadRooms(){
 
 async function deleteRoom(id){
   if(!confirm('Удалить комнату?')) return;
+  await sb.from('room_players').delete().eq('room_id', id);
   await sb.from('rooms').delete().eq('id', id);
   toast('Комната удалена');
-  loadRooms();
+  await loadRooms();
 }
 
 init();

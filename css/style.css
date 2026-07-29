@@ -46,6 +46,7 @@ input:focus,select:focus{outline:2px solid var(--accent)}
 }
 .player-item.dead{opacity:.4; text-decoration:line-through}
 .player-item.me{border:1px solid var(--accent)}
+.player-item.new-room{border:1px solid #6dff8f; box-shadow:0 0 0 1px rgba(109,255,143,.25) inset}
 .badge{font-size:11px; padding:3px 8px; border-radius:20px; background:var(--border); color:var(--muted)}
 .badge.mafia{background:#5a1830; color:#ff9fb5}
 .badge.good{background:#123a2c; color:var(--good)}
@@ -57,6 +58,10 @@ input:focus,select:focus{outline:2px solid var(--accent)}
 .card-tile .value{font-weight:600}
 .log{background:#0d0f1e; border-radius:10px; padding:12px 14px; max-height:220px; overflow-y:auto; font-size:14px; color:var(--muted)}
 .log div{margin-bottom:6px}
+.chat-list{display:flex; flex-direction:column; gap:8px; margin-bottom:10px; max-height:220px; overflow-y:auto; background:#0d1020; border-radius:10px; padding:10px}
+.chat-item{background:var(--panel2); border:1px solid var(--border); padding:8px 10px; border-radius:8px}
+.chat-input-row{display:flex; gap:8px; align-items:center}
+.chat-input-row input{margin:0}
 .center{text-align:center}
 .code-box{font-size:28px; letter-spacing:6px; font-weight:800; text-align:center; padding:14px; background:var(--panel2); border-radius:10px; margin:10px 0}
 .toast{
