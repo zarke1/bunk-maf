@@ -48,6 +48,7 @@ async function init(){
   me = await requireAuth();
   if(!me) return;
   profile = await getProfile(me.id);
+  await cleanupInactiveRooms();
   if(!profile?.is_admin){
     document.querySelector('.wrap').innerHTML = `<div class="card"><h2>Нет доступа</h2><p class="muted">Эта страница только для админов.</p><a href="lobby.html">В лобби</a></div>`;
     return;

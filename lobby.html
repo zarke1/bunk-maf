@@ -59,6 +59,7 @@ async function init(){
   me = await requireAuth();
   if(!me) return;
   profile = await getProfile(me.id);
+  await cleanupInactiveRooms();
   nickPill.textContent = '👤 ' + (profile?.nickname || '...');
   if(profile?.is_admin) adminLink.style.display = 'inline-block';
 
@@ -77,7 +78,7 @@ async function init(){
 async function createRoom(type){
   const code = genRoomCode();
   const { data, error } = await sb.from('rooms').insert({
-    code, game_type: type, host_id: me.id, status: 'waiting', state: {}
+    code, game_type: type, host_id: me.id, status: 'waiting', state: {}, settings: { last_activity: new Date().toISOString() }
   }).select().single();
   if(error){ toast(error.message); return; }
   await sb.from('room_players').insert({ room_id: data.id, user_id: me.id, nickname: profile.nickname, seat: 0 });
@@ -94,14 +95,13 @@ async function joinRoom(){
   const alreadyIn = existing && existing.length>0;
 
   if(!alreadyIn){
-    // Новый игрок может зайти только пока комната ждёт игроков
     if(room.status !== 'waiting'){ toast('Игра уже началась'); return; }
     const { count } = await sb.from('room_players').select('*', { count:'exact', head:true }).eq('room_id', room.id);
     const max = room.game_type==='bunker' ? 15 : 12;
     if(count >= max){ toast('Комната заполнена'); return; }
     await sb.from('room_players').insert({ room_id: room.id, user_id: me.id, nickname: profile.nickname, seat: count });
   }
-  // Если игрок уже был в этой комнате — пускаем обратно в любую фазу игры (перезаход)
+  await touchRoomActivity(room.id);
   location.href = (room.game_type==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + room.id;
 }
 

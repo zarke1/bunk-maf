@@ -31,6 +31,43 @@ function genRoomCode() {
   return s;
 }
 
+async function touchRoomActivity(roomId) {
+  if (!roomId) return;
+  try {
+    const { data, error } = await sb.from("rooms").select("settings").eq("id", roomId).single();
+    if (error || !data) return;
+    const settings = { ...(data.settings || {}), last_activity: new Date().toISOString() };
+    await sb.from("rooms").update({ settings }).eq("id", roomId);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function cleanupInactiveRooms() {
+  try {
+    const { data: rooms, error } = await sb.from("rooms").select("id, created_at, settings").order("created_at", { ascending: false });
+    if (error || !rooms?.length) return;
+    const now = Date.now();
+    for (const room of rooms) {
+      const lastActivity = room.settings?.last_activity || room.created_at;
+      const lastTime = new Date(lastActivity).getTime();
+      if (Number.isNaN(lastTime)) continue;
+      if (now - lastTime <= 5 * 60 * 1000) continue;
+      const { data: players } = await sb.from("room_players").select("user_id").eq("room_id", room.id);
+      const count = players?.length || 0;
+      if (count <= 1) {
+        await sb.from("rooms").delete().eq("id", room.id);
+      }
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+if (typeof window !== "undefined") {
+  setInterval(cleanupInactiveRooms, 30000);
+}
+
 async function logout() {
   await sb.auth.signOut();
   location.href = "index.html";
