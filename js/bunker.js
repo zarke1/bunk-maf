@@ -29,7 +29,6 @@ async function loadRoom(){
   room = r;
   const { data:p } = await sb.from("room_players").select("*").eq("room_id", roomId).order("seat");
   players = p || [];
-  await touchRoomActivity(roomId);
   render();
 }
 
