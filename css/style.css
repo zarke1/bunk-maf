@@ -186,6 +186,14 @@ body{
 .leaderboard-row .player .meta{margin-left:8px}
 .leaderboard-row .name{font-weight:700}
 
+/* Mafia teammate indicator (visible only to mafia viewers) */
+.mafia-badge{
+  display:inline-block;
+  width:12px; height:12px; border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, #ff7b7b, #ff3b3b);
+  margin-left:8px; box-shadow:0 0 8px rgba(255,60,60,.6);
+}
+
 .profile-card{
   display:flex;
   justify-content:space-between;

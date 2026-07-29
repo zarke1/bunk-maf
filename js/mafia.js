@@ -306,6 +306,7 @@ function render(){
     return;
   }
 
+          const viewerIsMafia = role === 'mafia';
   html += `<div class="phase-banner ${st.phase}">${
     st.phase==='night' ? `🌙 Ночь ${st.dayNumber}` : st.phase==='day' ? `☀ День ${st.dayNumber} — обсуждение` : `🗳 Голосование`
   }</div>`;
