@@ -15,6 +15,18 @@
   </div>
 
   <div class="card">
+    <h2>🏆 Топ победителей</h2>
+    <div style="margin-bottom:10px">
+      <select id="leaderboardFilter" onchange="renderLeaderboard()" style="max-width:260px; display:inline-block">
+        <option value="total">Все игры (сумма побед)</option>
+        <option value="bunker">Только Бункер</option>
+        <option value="mafia">Только Мафия</option>
+      </select>
+    </div>
+    <div id="leaderboardBox" class="muted">Загрузка...</div>
+  </div>
+
+  <div class="card">
     <h2>Пользователи</h2>
     <div id="usersBox" class="muted">Загрузка...</div>
   </div>
@@ -29,6 +41,8 @@
 <script src="js/common.js"></script>
 <script>
 let me, profile;
+let allProfiles = [];
+let statsMap = {};
 
 async function init(){
   me = await requireAuth();
@@ -39,18 +53,20 @@ async function init(){
     return;
   }
   await loadUsers();
+  renderLeaderboard();
   await loadRooms();
 }
 
 async function loadUsers(){
   const { data: profiles } = await sb.from('profiles').select('*').order('created_at', { ascending:false });
   const { data: stats } = await sb.from('stats').select('*');
-  const statsMap = {};
+  allProfiles = profiles || [];
+  statsMap = {};
   (stats||[]).forEach(s => statsMap[s.user_id] = s);
 
   usersBox.innerHTML = `<table>
     <tr><th>Ник</th><th>Регистрация</th><th>Бункер (сыгр/побед)</th><th>Мафия (сыгр/побед)</th><th>Админ</th><th></th></tr>
-    ${(profiles||[]).map(p=>{
+    ${allProfiles.map(p=>{
       const s = statsMap[p.id] || {};
       return `<tr>
         <td>${esc(p.nickname)}</td>
@@ -67,6 +83,38 @@ async function loadUsers(){
   </table>`;
 }
 
+function renderLeaderboard(){
+  const mode = document.getElementById('leaderboardFilter')?.value || 'total';
+  const rows = allProfiles.map(p=>{
+    const s = statsMap[p.id] || {};
+    const bunkerWon = s.bunker_won || 0;
+    const mafiaWon = s.mafia_won || 0;
+    const totalWon = bunkerWon + mafiaWon;
+    const totalPlayed = (s.bunker_played||0) + (s.mafia_played||0);
+    const sortValue = mode==='bunker' ? bunkerWon : mode==='mafia' ? mafiaWon : totalWon;
+    return { nickname:p.nickname, bunkerWon, mafiaWon, totalWon, totalPlayed, sortValue };
+  })
+  .filter(r => r.sortValue > 0)
+  .sort((a,b)=> b.sortValue - a.sortValue);
+
+  if(rows.length===0){
+    leaderboardBox.innerHTML = `<p class="muted">Пока никто не побеждал ни в одной игре.</p>`;
+    return;
+  }
+
+  const medals = ['🥇','🥈','🥉'];
+  leaderboardBox.innerHTML = `<table>
+    <tr><th>#</th><th>Ник</th><th>Побед в Бункере</th><th>Побед в Мафии</th><th>Всего побед</th></tr>
+    ${rows.map((r,i)=>`<tr>
+      <td>${medals[i] || (i+1)}</td>
+      <td>${esc(r.nickname)}</td>
+      <td>${r.bunkerWon}</td>
+      <td>${r.mafiaWon}</td>
+      <td><b>${r.totalWon}</b></td>
+    </tr>`).join('')}
+  </table>`;
+}
+
 async function toggleAdmin(userId, value){
   await sb.from('profiles').update({ is_admin: value }).eq('id', userId);
   toast('Обновлено');
@@ -77,7 +125,8 @@ async function resetStats(userId){
   if(!confirm('Точно сбросить статистику этого игрока?')) return;
   await sb.from('stats').update({ bunker_played:0, bunker_won:0, mafia_played:0, mafia_won:0 }).eq('user_id', userId);
   toast('Статистика сброшена');
-  loadUsers();
+  await loadUsers();
+  renderLeaderboard();
 }
 
 async function loadRooms(){
