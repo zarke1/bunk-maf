@@ -163,12 +163,24 @@ async function resolveVote(r, allPlayers){
   const st = { ...r.state };
   const tally = {};
   for(const v of Object.values(st.votes||{})){ if(v && v!=="skip") tally[v]=(tally[v]||0)+1; }
-  let out=null, max=-1;
-  for(const [id,c] of Object.entries(tally)){ if(c>max){ max=c; out=id; } }
-  const log = [...st.log];
 
+  const alivePlayers = allPlayers.filter(p => p.alive);
+  const candidates = alivePlayers.map(p => p.user_id);
+  let out = null;
+  let max = -1;
+
+  for(const id of candidates){
+    const c = tally[id] || 0;
+    if(c > max){
+      max = c;
+      out = id;
+    }
+  }
+
+  const log = [...st.log];
   let updatedAlive = allPlayers;
-  if(out){
+
+  if(out && max > 0 && max > (alivePlayers.length - 1 - max)){
     await sb.from("room_players").update({ alive:false }).eq("room_id", roomId).eq("user_id", out);
     const nick = allPlayers.find(x=>x.user_id===out)?.nickname || "?";
     log.push(`🗳 По итогам голосования изгнан(а): ${nick}`);
