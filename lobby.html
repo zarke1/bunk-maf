@@ -39,6 +39,12 @@
   </div>
 
   <div class="card">
+    <h2>Мои комнаты</h2>
+    <p class="muted">Комнаты Бункера и Мафии, в которых ты уже участвовал(а) — можно перезайти в игру в любой момент.</p>
+    <div id="myRoomsBox" class="muted">Загрузка...</div>
+  </div>
+
+  <div class="card">
     <h2>Моя статистика</h2>
     <div id="statsBox" class="muted">Загрузка...</div>
   </div>
@@ -64,6 +70,8 @@ async function init(){
       <tr><td>🔪 Мафия</td><td>${stats?.mafia_played||0}</td><td>${stats?.mafia_won||0}</td></tr>
     </table>
   `;
+
+  await loadMyRooms();
 }
 
 async function createRoom(type){
@@ -81,16 +89,48 @@ async function joinRoom(){
   if(!code){ toast('Введи код'); return; }
   const { data: room, error } = await sb.from('rooms').select('*').eq('code', code).single();
   if(error || !room){ toast('Комната не найдена'); return; }
-  if(room.status !== 'waiting'){ toast('Игра уже началась'); return; }
 
   const { data: existing } = await sb.from('room_players').select('*').eq('room_id', room.id).eq('user_id', me.id);
-  if(!existing || existing.length===0){
+  const alreadyIn = existing && existing.length>0;
+
+  if(!alreadyIn){
+    // Новый игрок может зайти только пока комната ждёт игроков
+    if(room.status !== 'waiting'){ toast('Игра уже началась'); return; }
     const { count } = await sb.from('room_players').select('*', { count:'exact', head:true }).eq('room_id', room.id);
     const max = room.game_type==='bunker' ? 15 : 12;
     if(count >= max){ toast('Комната заполнена'); return; }
     await sb.from('room_players').insert({ room_id: room.id, user_id: me.id, nickname: profile.nickname, seat: count });
   }
+  // Если игрок уже был в этой комнате — пускаем обратно в любую фазу игры (перезаход)
   location.href = (room.game_type==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + room.id;
+}
+
+const STATUS_LABELS = { waiting: '⏳ Ожидание', playing: '▶ Идёт игра', finished: '🏁 Завершена' };
+
+async function loadMyRooms(){
+  const { data, error } = await sb.from('room_players')
+    .select('room_id, rooms(id, code, game_type, status, created_at)')
+    .eq('user_id', me.id);
+  if(error){ myRoomsBox.innerHTML = '<p class="muted">Не удалось загрузить список комнат.</p>'; return; }
+
+  const rooms = (data||[]).map(d=>d.rooms).filter(Boolean)
+    .sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+
+  renderMyRooms(rooms);
+}
+
+function renderMyRooms(rooms){
+  if(!rooms.length){ myRoomsBox.innerHTML = '<p class="muted">Пока нет комнат — создай новую или войди по коду.</p>'; return; }
+
+  myRoomsBox.innerHTML = `<div class="player-list">${rooms.map(r=>`
+    <div class="player-item">
+      <span>${r.game_type==='bunker'?'🏕':'🔪'} <b>${esc(r.code)}</b> <span class="badge">${STATUS_LABELS[r.status]||r.status}</span></span>
+      <button class="btn small" onclick="rejoinRoom('${r.id}','${r.game_type}')">${r.status==='waiting' ? 'Войти' : 'Перезайти'}</button>
+    </div>`).join("")}</div>`;
+}
+
+function rejoinRoom(roomId, gameType){
+  location.href = (gameType==='bunker' ? 'bunker.html' : 'mafia.html') + '?room=' + roomId;
 }
 
 init();

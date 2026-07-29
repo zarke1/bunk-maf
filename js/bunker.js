@@ -20,6 +20,8 @@ async function init(){
     .on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId}, loadRoom)
     .on("postgres_changes",{event:"*",schema:"public",table:"room_players",filter:"room_id=eq."+roomId}, loadRoom)
     .subscribe();
+  // Хост каждые несколько секунд проверяет, не истекло ли время голосования
+  setInterval(()=>{ if(room && room.host_id===me.id) maybeResolveVote(); }, 3000);
 }
 
 async function loadRoom(){
@@ -69,13 +71,15 @@ async function revealCard(type){
   await sb.from("room_players").update({ revealed }).eq("room_id", roomId).eq("user_id", me.id);
 }
 
+const VOTE_TIME_MS = 2*60*1000; // 2 минуты на голосование
+
 async function passTurn(){
   if(!isMyTurn()) return;
   const st = { ...room.state };
   const ord = aliveOrdered();
   st.turnIndex = (st.turnIndex + 1);
   if(st.turnIndex >= ord.length){
-    st.phase = "vote"; st.votes = {};
+    st.phase = "vote"; st.votes = {}; st.voteDeadline = Date.now() + VOTE_TIME_MS;
   }
   await sb.from("rooms").update({ state: st }).eq("id", roomId);
 }
@@ -87,11 +91,31 @@ async function castVote(targetId){
   if(room.host_id === me.id) setTimeout(maybeResolveVote, 400);
 }
 
+// Вызывается сразу после голоса (хостом) и по таймеру каждые несколько секунд.
+// Голосование завершается, когда проголосовали все живые ИЛИ истекли 2 минуты —
+// тогда те, кто не успел проголосовать, просто не учитываются.
 async function maybeResolveVote(){
   const { data:r } = await sb.from("rooms").select("*").eq("id", roomId).single();
+  if(!r || r.status !== "playing") return;
   const st = r.state;
-  const alive = players.filter(p=>p.alive);
-  if(Object.keys(st.votes||{}).length < alive.length) return;
+  if(st.phase !== "vote") return;
+
+  const { data:p } = await sb.from("room_players").select("*").eq("room_id", roomId);
+  const allPlayers = p || [];
+  const alive = allPlayers.filter(x=>x.alive);
+  const votesCount = Object.keys(st.votes||{}).length;
+  const timeUp = st.voteDeadline && Date.now() >= st.voteDeadline;
+
+  if(votesCount < alive.length && !timeUp) return; // ждём остальных или таймер
+
+  if(votesCount === 0){
+    // никто не успел проголосовать за отведённое время — просто идём дальше без изгнания
+    await sb.from("rooms").update({ state:{
+      ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null,
+      log:[...st.log, `⌛ Время голосования (раунд ${st.round}) истекло — никто не проголосовал, никто не изгнан.`]
+    }}).eq("id", roomId);
+    return;
+  }
 
   const tally = {};
   for(const v of Object.values(st.votes)) tally[v] = (tally[v]||0)+1;
@@ -99,29 +123,50 @@ async function maybeResolveVote(){
   for(const [id,c] of Object.entries(tally)){ if(c>max){ max=c; out=id; } }
 
   await sb.from("room_players").update({ alive:false }).eq("room_id", roomId).eq("user_id", out);
-  const outNick = players.find(p=>p.user_id===out)?.nickname || "?";
+  const outNick = allPlayers.find(x=>x.user_id===out)?.nickname || "?";
   const remaining = alive.length - 1;
-  const newLog = [...st.log, `🚪 Изгнан(а) из бункера: ${outNick} (раунд ${st.round})`];
+  const missed = alive.length - votesCount;
+  const missedNote = timeUp && missed>0 ? ` · не успели проголосовать: ${missed}` : "";
+  const newLog = [...st.log, `🚪 Изгнан(а) из бункера: ${outNick} (раунд ${st.round})${missedNote}`];
 
   if(remaining <= st.capacity){
-    const survivors = alive.filter(p=>p.user_id!==out);
-    await sb.from("rooms").update({ status:"finished", state:{ ...st, phase:"end", log:newLog, survivors: survivors.map(s=>s.user_id) } }).eq("id", roomId);
-    for(const p of players){
-      const { data:s } = await sb.from("stats").select("*").eq("user_id", p.user_id).single();
-      const won = survivors.some(x=>x.user_id===p.user_id);
+    const survivors = alive.filter(x=>x.user_id!==out);
+    await sb.from("rooms").update({ status:"finished", state:{ ...st, phase:"end", log:newLog, survivors: survivors.map(s=>s.user_id), voteDeadline:null } }).eq("id", roomId);
+    for(const pl of allPlayers){
+      const { data:s } = await sb.from("stats").select("*").eq("user_id", pl.user_id).single();
+      const won = survivors.some(x=>x.user_id===pl.user_id);
       await sb.from("stats").update({
         bunker_played:(s?.bunker_played||0)+1, bunker_won:(s?.bunker_won||0)+(won?1:0)
-      }).eq("user_id", p.user_id);
+      }).eq("user_id", pl.user_id);
     }
   } else {
-    await sb.from("rooms").update({ state:{ ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, log:newLog } }).eq("id", roomId);
+    await sb.from("rooms").update({ state:{ ...st, phase:"reveal", round:st.round+1, turnIndex:0, votes:{}, voteDeadline:null, log:newLog } }).eq("id", roomId);
   }
 }
 
 const CARD_LABELS = { profession:"Профессия", health:"Здоровье", hobby:"Хобби", phobia:"Фобия", baggage:"Багаж", fact:"Особый факт", age:"Возраст/Пол" };
 
+let voteTimerInterval = null;
+function stopVoteTimerDisplay(){
+  if(voteTimerInterval){ clearInterval(voteTimerInterval); voteTimerInterval = null; }
+}
+function startVoteTimerDisplay(deadline){
+  stopVoteTimerDisplay();
+  function tick(){
+    const el = document.getElementById("voteTimer");
+    if(!el){ stopVoteTimerDisplay(); return; }
+    const left = Math.max(0, deadline - Date.now());
+    const m = Math.floor(left/60000);
+    const s = Math.floor((left%60000)/1000);
+    el.textContent = `⏱ ${m}:${s.toString().padStart(2,'0')}`;
+  }
+  tick();
+  voteTimerInterval = setInterval(tick, 1000);
+}
+
 function render(){
   const app = document.getElementById("app");
+  stopVoteTimerDisplay();
   if(!room){ app.innerHTML = "Загрузка..."; return; }
 
   let html = `<div class="header">
@@ -197,8 +242,8 @@ function render(){
   if(st.phase === "vote"){
     const alive = players.filter(p=>p.alive);
     const myVote = st.votes?.[me.id];
-    html += `<div class="card"><h2>🗳 Голосование за изгнание</h2>
-      <p class="muted">Выберите, кого исключить из бункера в этом раунде.</p>
+    html += `<div class="card"><h2>🗳 Голосование за изгнание <span id="voteTimer" class="pill"></span></h2>
+      <p class="muted">Выберите, кого исключить из бункера в этом раунде. Не успеешь проголосовать за 2 минуты — твой голос просто не учтётся.</p>
       <div class="player-list">${alive.map(p=>`
         <div class="player-item ${p.user_id===myVote?'me':''}">
           <span>${esc(p.nickname)}</span>
@@ -219,6 +264,7 @@ function render(){
   html += `<div class="card"><h2>Журнал событий</h2><div class="log">${st.log.map(l=>`<div>${esc(l)}</div>`).join("")}</div></div>`;
 
   app.innerHTML = html;
+  if(st.phase === "vote" && st.voteDeadline) startVoteTimerDisplay(st.voteDeadline);
 }
 
 init();
